@@ -1,0 +1,30 @@
+# Dados: baixar do Kaggle, ver README (nunca versionar)
+data/raw/
+data/processed/
+
+# Contexto estratégico pessoal e rascunhos (nunca commitar; o histórico git preserva removidos)
+CLAUDE.md
+investigacao01.txt
+prog.py
+data/data_dictionary.pdf
+
+# Ambiente Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Caches de ferramentas
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# Config local de agente
+.claude/
+
+# Sistema operacional / editor
+.DS_Store
+.vscode/
+.idea/

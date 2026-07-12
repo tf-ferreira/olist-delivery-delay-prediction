@@ -1,0 +1,23 @@
+# Ambiente de referência: Python 3.14 (venv), versões fixadas para reprodutibilidade.
+# Instalação: pip install -r requirements.txt
+
+# Dados
+pandas==3.0.3
+numpy==2.4.6
+pyarrow==25.0.0
+
+# Modelagem
+scikit-learn==1.9.0
+lightgbm==4.6.0
+shap==0.52.0
+
+# Visualização
+matplotlib==3.11.0
+seaborn==0.13.2
+
+# App
+streamlit==1.59.1
+
+# Desenvolvimento
+jupyterlab==4.6.1
+ruff==0.15.21
