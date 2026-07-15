@@ -5,6 +5,8 @@ data/processed/
 # Contexto estratégico pessoal e rascunhos (nunca commitar; o histórico git preserva removidos)
 CLAUDE.md
 notas_apresentacao.md
+nota.md
+didatico/
 investigacao01.txt
 prog.py
 data/data_dictionary.pdf
