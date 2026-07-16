@@ -1,9 +1,9 @@
 """Streamlit app: delivery delay prediction on the Olist dataset.
 
-Four pages (project decision): context, EDA & personas, model & live alert
-budget slider, and the order simulator. The app consumes ONLY the small
-derived artifacts in ``app/artifacts/`` (no raw data), so it deploys to
-Streamlit Community Cloud straight from the public repo.
+Five pages: context, data (tables and the leakage contract), EDA & personas,
+model & live alert budget slider, and the order simulator. The app consumes
+ONLY the small derived artifacts in ``app/artifacts/`` (no raw data), so it
+deploys to Streamlit Community Cloud straight from the public repo.
 """
 
 from __future__ import annotations
@@ -54,6 +54,7 @@ def load_tables() -> dict[str, pd.DataFrame]:
         "dist_rate",
         "window_rate",
         "personas",
+        "route_distance",
     ]
     return {n: pd.read_parquet(ARTIFACTS / f"{n}.parquet") for n in names}
 
@@ -78,10 +79,11 @@ st.sidebar.caption("Brazilian E-Commerce Public Dataset (Olist) · 2016–2018")
 page = st.sidebar.radio(
     "Páginas",
     [
-        "1 · Contexto e dados",
-        "2 · EDA e personas",
-        "3 · Modelo e cenário de negócio",
-        "4 · Simulador de pedido",
+        "1 · Contexto",
+        "2 · Dados",
+        "3 · EDA e personas",
+        "4 · Modelo e cenário de negócio",
+        "5 · Simulador de pedido",
     ],
 )
 st.sidebar.divider()
@@ -167,6 +169,95 @@ completa, coluna a coluna, está no notebook 01 do repositório.
 
 # ------------------------------------------------------------------ page 2
 elif page.startswith("2"):
+    st.title("Os dados: 9 tabelas e o contrato de uso")
+    st.markdown(
+        """
+Fonte: [Brazilian E-Commerce Public Dataset by Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce)
+(Kaggle), 9 tabelas relacionais com ~100 mil pedidos reais de 2016 a 2018. Antes de qualquer análise,
+cada tabela teve granularidade e chaves **verificadas por código** (notebook 01), não assumidas da documentação.
+"""
+    )
+
+    st.subheader("As 9 tabelas e o que é uma linha em cada uma")
+    tabelas = pd.DataFrame(
+        [
+            ("orders", "um pedido", "datas de compra, entrega real e data prometida"),
+            ("order_items", "um item de um pedido", "preço, frete, produto, vendedor"),
+            ("order_payments", "um pagamento de um pedido", "tipo, parcelas, valor"),
+            ("order_reviews", "uma avaliação", "nota 1–5, comentário (pós-entrega!)"),
+            ("customers", "o cliente de UM pedido", "cidade, UF, prefixo de CEP"),
+            ("sellers", "um vendedor", "cidade, UF, prefixo de CEP"),
+            ("products", "um produto do catálogo", "categoria, peso, dimensões"),
+            (
+                "geolocation",
+                "uma coordenada de CEP",
+                "latitude, longitude (SEM chave!)",
+            ),
+            ("category_translation", "uma categoria", "nome em inglês"),
+        ],
+        columns=["tabela", "uma linha é...", "colunas principais"],
+    )
+    st.dataframe(tabelas, hide_index=True, width=760)
+    st.caption(
+        "Armadilhas verificadas em código: `customer_id` é único por PEDIDO (a pessoa é "
+        "`customer_unique_id`); `geolocation` tem ~1 milhão de linhas sem chave (vira 1 centroide "
+        "por prefixo de CEP, filtrado pela caixa do Brasil, ANTES de qualquer join); 814 reviews duplicados."
+    )
+
+    st.subheader("A auditoria de vazamento: o contrato do modelo")
+    st.markdown(
+        "Regra única: **uma coluna só pode ser feature se seu valor é conhecido no momento em que "
+        "o cliente conclui a compra.** Cada coluna foi classificada; o resumo:"
+    )
+    audit = pd.DataFrame(
+        [
+            (
+                "PERMITIDA",
+                "data da compra; data PROMETIDA; preço; frete; endereço do cliente; categoria, peso e dimensões; pagamento",
+                "existem na tela do checkout",
+            ),
+            (
+                "PERMITIDA (derivada)",
+                "janela prometida em dias; distância vendedor→cliente; razão frete/preço; histórico do vendedor ATÉ aquele instante",
+                "construídas só com o que existia em t",
+            ),
+            (
+                "BANIDA",
+                "data de aprovação; data de postagem; data de entrega; status do pedido; reviews (100% pós-entrega)",
+                "nascem DEPOIS da compra; em produção estariam vazias",
+            ),
+            (
+                "ALVO",
+                "data de entrega real vs prometida (comparação por DATAS)",
+                "define o que prever; jamais entra como insumo",
+            ),
+            (
+                "VALIDADA E EXCLUÍDA",
+                "shipping_limit_date (limite de postagem)",
+                "passou 100% na validação (0 violações em 112.650 itens) e ficou fora: o snapshot não prova que nunca é atualizada após a compra",
+            ),
+        ],
+        columns=["status", "colunas", "motivo"],
+    )
+    st.dataframe(audit, hide_index=True, width=760)
+    st.caption(
+        "Prova executável do contrato: treinar com o alvo embaralhado derruba a AUC para 0,500 "
+        "(célula com assert no notebook 03), e 6 testes pytest protegem a feature de histórico do vendedor."
+    )
+
+    st.subheader("População e alvo")
+    st.markdown(
+        """
+- **96.470 pedidos** com status entregue e data registrada (8 excluídos por data nula); **6,77% atrasados**.
+- O alvo compara **datas**, não timestamps: a promessa é registrada à meia-noite, e a comparação ingênua
+  por hora rotularia errado **1.292 pedidos** entregues no próprio dia prometido (daria 8,11% em vez de 6,77%).
+- Fora do escopo (limitação declarada): pedidos cancelados ou nunca entregues; e o fim do período é truncado
+  em ago/2018, porque perto da borda só os pedidos entregues RÁPIDO já constavam na base (viés de sobrevivência).
+"""
+    )
+
+# ------------------------------------------------------------------ page 3
+elif page.startswith("3"):
     st.title("O que os dados contam")
     tab1, tab2, tab3, tab4 = st.tabs(
         ["Geografia", "Janela prometida", "Distância", "Personas de vendedores"]
@@ -254,8 +345,8 @@ elif page.startswith("2"):
             "com postagem ~3x mais lenta: risco concentrado e visível ANTES do atraso."
         )
 
-# ------------------------------------------------------------------ page 3
-elif page.startswith("3"):
+# ------------------------------------------------------------------ page 4
+elif page.startswith("4"):
     st.title("O modelo e o cenário de negócio ao vivo")
     st.markdown(
         """
@@ -268,6 +359,23 @@ virou próximo passo (validação em múltiplas janelas antes de produção).
     )
     preds = T["test_predictions"]
     ops = T["operating_points"].set_index("ponto")
+
+    months = META["n_test_months"]
+    total_late_month = int(preds["is_late"].sum()) // months
+    b1, b2, b3 = st.columns(3)
+    b1.metric("Pedidos / mês típico", f"{len(preds) // months:,}".replace(",", "."))
+    b2.metric(
+        "Atrasos / mês típico",
+        f"{total_late_month:,}".replace(",", "."),
+        f"{META['test_prevalence']:.1%} dos pedidos",
+        delta_color="off",
+    )
+    b3.metric("Janela do teste", "6 meses (mar–ago/2018)")
+    st.caption(
+        "Estes são os totais contra os quais o cenário abaixo se compara: sem modelo nenhum, "
+        f"a operação enfrenta ~{total_late_month} atrasos por mês sem saber quais pedidos são."
+    )
+    st.divider()
 
     st.subheader("Escolha o orçamento de alertas")
     st.markdown(
@@ -398,11 +506,25 @@ else:
             )
             payment = st.selectbox("Tipo de pagamento", DEFAULTS["payment_types"])
         with c2:
+            seller_uf = st.selectbox(
+                "UF do vendedor (origem)",
+                DEFAULTS["states"],
+                index=DEFAULTS["states"].index("SP"),
+                help=(
+                    "A origem entra no modelo pela DISTÂNCIA da rota e pelo histórico do "
+                    "vendedor; a UF do vendedor não é uma feature própria. Selecionando a "
+                    "origem, a distância usa a mediana real da rota origem→destino."
+                ),
+            )
             window = st.slider(
                 "Janela prometida (dias)", 5, 60, int(med["promised_window_days"])
             )
-            distance = st.slider(
-                "Distância vendedor→cliente (km)", 0, 3200, int(med["distance_km"])
+            manual_dist = st.checkbox("Ajustar distância manualmente", value=False)
+            distance_manual = st.slider(
+                "Distância manual (km, usada só se marcado acima)",
+                0,
+                3200,
+                int(med["distance_km"]),
             )
             weight = st.slider("Peso total (g)", 50, 30000, int(med["total_weight_g"]))
             n_items = st.slider("Nº de itens", 1, 6, 1)
@@ -433,6 +555,15 @@ else:
         )
 
     if submitted:
+        routes = T["route_distance"]
+        route = routes[
+            (routes["seller_state"] == seller_uf) & (routes["customer_state"] == uf)
+        ]
+        route_km = (
+            float(route["mediana_km"].iloc[0]) if len(route) else med["distance_km"]
+        )
+        distance = float(distance_manual) if manual_dist else route_km
+
         row = {c: med[c] for c in med}
         row.update(
             {
@@ -475,8 +606,15 @@ else:
             "SERIA NOTIFICADO" if alerted else "não notificado",
         )
         st.progress(min(proba / 0.5, 1.0))
+        origem = (
+            "ajustada manualmente"
+            if manual_dist
+            else f"mediana da rota {seller_uf}→{uf}"
+            + ("" if len(route) else " (rota sem dados; usada a mediana geral)")
+        )
         st.caption(
-            f"Referências: taxa média global {META['global_rate']:.1%} · threshold do orçamento "
-            f"default {default_thr:.1%}. Probabilidades da campeã sem calibração fina (próximo passo registrado); "
+            f"Distância usada: **{distance:,.0f} km** ({origem}) · taxa média global "
+            f"{META['global_rate']:.1%} · threshold do orçamento default {default_thr:.1%}. "
+            "Probabilidades da campeã sem calibração fina (próximo passo registrado); "
             "a leitura recomendada é o percentil de risco."
         )

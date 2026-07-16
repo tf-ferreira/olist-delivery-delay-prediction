@@ -107,6 +107,21 @@ def main() -> None:
         ROOT / "data/processed/seller_segments.parquet", ARTIFACTS / "personas.parquet"
     )
 
+    # Route medians for the simulator: typical distance per seller UF ->
+    # customer UF (main seller's state), so origin can be picked by UF
+    # instead of a raw km slider. Routes with <5 orders fall back in-app.
+    sellers = pd.read_csv(ROOT / "data/raw/olist_sellers_dataset.csv")
+    seller_state = sellers.set_index("seller_id")["seller_state"]
+    routes = (
+        master.assign(seller_state=master["main_seller_id"].map(seller_state))
+        .groupby(["seller_state", "customer_state"], observed=True)["distance_km"]
+        .agg(mediana_km="median", n="size")
+        .reset_index()
+    )
+    routes[routes["n"] >= 5].to_parquet(
+        ARTIFACTS / "route_distance.parquet", index=False
+    )
+
     # Simulator defaults: train-only medians/modes (leakage discipline even here).
     defaults = {
         "medians": {c: float(train[c].median()) for c in NUMERIC_FEATURES},
