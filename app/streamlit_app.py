@@ -312,26 +312,43 @@ virou próximo passo (validação em múltiplas janelas antes de produção).
 
     col_a, col_b = st.columns(2)
     with col_a:
-        pr = T["pr_curve_val"]
+        # PR curve of the TEST itself: the slider point slides exactly on it
+        # by construction (same predictions, same threshold semantics). The
+        # validation curve sits higher (prevalence 9.8% vs 7.0%), so the point
+        # would never touch it, which reads as a bug.
+        from sklearn.metrics import precision_recall_curve
+
+        prec_t, rec_t, _ = precision_recall_curve(preds["is_late"], preds["proba"])
         fig, ax = plt.subplots(figsize=(6, 4.2))
-        ax.plot(pr["recall"], pr["precision"], color=ACCENT, linewidth=2)
-        ax.axhline(0.0975, color=GRAY, linewidth=1, linestyle="--")
+        ax.plot(rec_t[::20], prec_t[::20], color=ACCENT, linewidth=2)
+        ax.axhline(META["test_prevalence"], color=GRAY, linewidth=1, linestyle="--")
+        ax.annotate(
+            f"acaso = prevalência ({META['test_prevalence']:.1%})",
+            xy=(0.98, META["test_prevalence"]),
+            xycoords=("axes fraction", "data"),
+            xytext=(0, 5),
+            textcoords="offset points",
+            ha="right",
+            fontsize=8,
+            color=GRAY,
+        )
         ax.scatter([captured / total_late], [precision], s=70, color=INK, zorder=3)
         ax.annotate(
-            "você está aqui*",
+            "você está aqui",
             xy=(captured / total_late, precision),
             xytext=(8, 8),
             textcoords="offset points",
             fontsize=9,
             color=INK,
         )
-        ax.set_ylim(0, 0.75)
-        ax.set_title("Curva precision-recall (validação)")
+        ax.set_ylim(0, 0.6)
+        ax.set_title("Curva precision-recall (teste)")
         ax.set_xlabel("recall")
         ax.set_ylabel("precisão")
         st.pyplot(fig, width=560)
         st.caption(
-            "*ponto atual medido no teste, sobre a curva da validação (referência)."
+            "O ponto desliza sobre a curva do teste conforme o orçamento. Os pontos "
+            "nomeados do menu foram escolhidos na validação, antes de tocar o teste."
         )
     with col_b:
         monthly_roc = []
