@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Relatório executivo · Previsão de atraso de entrega</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Lato", "Segoe UI", system-ui, sans-serif; color: #1a1a1a; font-size: 10.5pt; line-height: 1.55; margin: 0; }
+  h1 { font-size: 20pt; margin: 0 0 2mm; color: #0d366b; }
+  h2 { font-size: 13.5pt; color: #0d366b; border-bottom: 2px solid #2a78d6; padding-bottom: 1mm; margin-top: 8mm; }
+  h3 { font-size: 11pt; color: #184f95; margin-bottom: 1.5mm; }
+  p { margin: 2.2mm 0; text-align: justify; }
+  .subtitle { color: #52514e; font-size: 11pt; margin-bottom: 5mm; }
+  table { border-collapse: collapse; width: 100%; margin: 3mm 0; font-size: 9.5pt; page-break-inside: avoid; }
+  th { background: #0d366b; color: #fff; padding: 1.8mm 2.5mm; text-align: left; }
+  td { border: 1px solid #d7d6d0; padding: 1.6mm 2.5mm; vertical-align: top; }
+  tr:nth-child(even) td { background: #f6f6f3; }
+  .kpi { display: flex; gap: 4mm; margin: 4mm 0; }
+  .kpi div { flex: 1; background: #edf4fd; border-radius: 6px; padding: 3mm; text-align: center; }
+  .kpi .v { font-size: 15pt; font-weight: 700; color: #0d366b; }
+  .kpi .l { font-size: 8.5pt; color: #52514e; }
+  .destaque { background: #f6f6f3; border-left: 4px solid #2a78d6; border-radius: 6px; padding: 3mm 4mm; margin: 3.5mm 0; page-break-inside: avoid; }
+  img { max-width: 100%; margin: 2mm 0; }
+  figure { margin: 3mm 0; page-break-inside: avoid; }
+  figcaption { font-size: 8.5pt; color: #52514e; margin-top: 1mm; }
+  .pagebreak { page-break-before: always; }
+  .capa { text-align: center; padding-top: 65mm; }
+  .capa h1 { font-size: 24pt; }
+  .mini { font-size: 9pt; color: #52514e; }
+  ul, ol { margin: 2mm 0; padding-left: 6mm; }
+  li { margin: 1.3mm 0; }
+</style>
+</head>
+<body>
+
+<div class="capa">
+  <p class="mini" style="color:#2a78d6; font-weight:700; letter-spacing:0.1em">RELATÓRIO EXECUTIVO</p>
+  <h1>Previsão de atraso de entrega<br>no e-commerce brasileiro</h1>
+  <p class="subtitle">Do dado público da Olist a um sistema de alertas proativos,<br>com avaliação honesta e cenário operacional em contagens</p>
+  <p class="mini">Thiago Ferreira · Julho de 2026<br>Código, notebooks e aplicativo interativo: github.com/tf-ferreira/olist-delivery-delay-prediction</p>
+</div>
+
+<div class="pagebreak"></div>
+
+<h2>1. Sumário executivo</h2>
+
+<p><strong>O problema:</strong> 6,8% dos pedidos entregues do e-commerce brasileiro (dataset público Olist, 96.470 pedidos de 2016–2018) chegam depois da data prometida ao cliente. A empresa só descobre cada atraso quando ele já aconteceu, e reage apagando incêndio: reclamações, avaliações negativas e perda de recompra.</p>
+
+<p><strong>A solução construída:</strong> um modelo que estima, no instante em que a compra é concluída, a probabilidade de o pedido atrasar, usando apenas informações que existem naquele momento (endereço, promessa de prazo, atributos do produto e o histórico do vendedor até ali). A probabilidade alimenta uma política simples de operação: <em>notificar proativamente os k% pedidos de maior risco do mês</em>, com k escolhido pelo negócio.</p>
+
+<div class="kpi">
+  <div><div class="v">2,2x</div><div class="l">precisão dos alertas vs escolha aleatória (ponto default)</div></div>
+  <div><div class="v">36%</div><div class="l">dos atrasos capturados notificando 16% dos pedidos</div></div>
+  <div><div class="v">1.054</div><div class="l">clientes notificados por mês típico (~6,5 mil pedidos)</div></div>
+  <div><div class="v">0,61–0,79</div><div class="l">AUC-ROC mensal no teste, estável através de 3 regimes</div></div>
+</div>
+
+<p><strong>Como foi avaliado:</strong> com a disciplina que produção exige. Divisão treino/teste no tempo (nunca aleatória), auditoria coluna a coluna contra vazamento de informação do futuro, e um conjunto de teste de seis meses aberto uma única vez. Os números acima são estimativas honestas de comportamento futuro, não métricas de laboratório.</p>
+
+<p><strong>A recomendação:</strong> piloto operacional de notificação proativa no ponto default (16% de orçamento de alertas), com monitoramento mensal da qualidade de ordenação e gatilho de retreino, e a evolução do modelo pela agenda de próximos passos da seção 8.</p>
+
+<h2>2. O problema e o valor</h2>
+
+<p>O atraso de entrega é a pior experiência do funil logístico, e é assimétrico: custa caro em reputação e recompra, mas a maioria esmagadora dos pedidos (93,2%) chega no prazo. Agir sobre todos os pedidos é caro demais; não agir sobre nenhum é o status quo reativo. O valor de um modelo de risco está exatamente no meio: <strong>concentrar a atenção operacional nos pedidos certos, antes do estouro do prazo</strong>. As ações possíveis com um score de risco no momento da compra: aviso proativo ao cliente (a expectativa gerenciada dói menos que a surpresa), priorização no fluxo de despacho, e cobrança dirigida aos vendedores de risco.</p>
+
+<h2>3. Os dados e o rigor de preparação</h2>
+
+<p>Base pública da Olist (marketplace brasileiro): 9 tabelas relacionais, ~100 mil pedidos reais de 2016 a 2018, com pedidos, itens, pagamentos, clientes, vendedores e geolocalização. A população analisada são os 96.470 pedidos entregues com data registrada; o alvo compara datas (a promessa é registrada à meia-noite, e a comparação ingênua por horário rotularia errado 1.292 pedidos entregues no próprio dia prometido).</p>
+
+<div class="destaque">
+  <p><strong>A regra que governa o projeto:</strong> só entra no modelo o que era conhecido no instante da compra. Datas de aprovação, postagem e entrega, e as avaliações dos clientes, são posteriores e ficam banidas (auditoria coluna a coluna no repositório). A variável mais sensível, o histórico de cada vendedor, foi construída com relógios de disponibilidade: o desfecho de um pedido só entra no histórico quando aquele pedido é entregue, exatamente como uma feature store de produção veria. O contrato é verificado por testes automatizados e por um teste de sanidade: treinando com o alvo embaralhado, o desempenho desaba para o equivalente à moeda ao ar (0,500), como deve ser.</p>
+</div>
+
+<p>O pipeline de consolidação (9 tabelas → 1 linha por pedido) audita a contagem de linhas a cada junção e mantém valores faltantes sinalizados em vez de imputados, com as estatísticas de preenchimento aprendidas apenas no período de treino.</p>
+
+<h2>4. O que os dados revelam</h2>
+
+<figure>
+  <img src="figures/taxa_atraso_mensal.png" alt="Taxa de atraso mensal">
+  <figcaption>Figura 1 · A taxa de atraso mensal varia de ~3% a 19%: Black Friday (nov/17), a crise logística de fev–mar/18 (o maior choque da série) e a recalibração de promessas pós-greve (jun/18, 1,2%).</figcaption>
+</figure>
+
+<ol>
+  <li><strong>O atraso não é estável no tempo</strong> (3% a 19% ao mês), o que exige avaliação temporal e monitoramento contínuo em produção.</li>
+  <li><strong>Geografia domina:</strong> a taxa vai de 4,5% (SP) a 21,4% (AL); a distância vendedor→cliente tem gradiente limpo (4,6% → 9,7% por quintil). O caso de negócio mais forte: o Rio de Janeiro, segundo maior mercado (12.350 pedidos), atrasa quase 3x mais que SP.</li>
+  <li><strong>O atraso é relativo à promessa:</strong> promessas intermediárias (17–22 dias) atrasam mais que as curtas e as longas, e pedidos multi-vendedor atrasam MENOS (a promessa igual com entrega real mais rápida gera folga maior). A qualidade da calibração da promessa é parte do fenômeno.</li>
+  <li><strong>O risco de vendedor é concentrado e antecipável:</strong> a segmentação identificou 128 vendedores (10% da base ativa) com taxa de atraso de 16,5% (2,4x a média) e despacho ~3x mais lento; a lentidão de postagem é sintoma visível antes do atraso.</li>
+</ol>
+
+<figure>
+  <img src="figures/personas_vendedores.png" alt="Personas de vendedores">
+  <figcaption>Figura 2 · As três personas de vendedores (K-Means): os "gargalos logísticos" concentram o risco e são identificáveis pelo tempo de postagem.</figcaption>
+</figure>
+
+<h2>5. O modelo e a avaliação honesta</h2>
+
+<p>Três modelos foram comparados em escada de complexidade (Regressão Logística, Random Forest, LightGBM), sob um protocolo fixado antes de qualquer treino: seleção de hiperparâmetros e do campeão num bloco de validação temporal dentro do treino, e um teste de seis meses (mar–ago/2018) consultado <strong>uma única vez</strong>, ao final. A campeã selecionada foi a <strong>Regressão Logística regularizada</strong>: sob a mudança de regime entre treino e validação, o modelo simples generalizou melhor que os de maior capacidade, um resultado que um split aleatório (a prática comum) teria escondido.</p>
+
+<table>
+  <tr><th>Modelo</th><th>AUC-PR no teste</th><th>vs acaso (7,0%)</th><th>AUC-ROC no teste</th></tr>
+  <tr><td><strong>Regressão Logística (campeã)</strong></td><td>0,138</td><td>2,0x</td><td>0,699</td></tr>
+  <tr><td>LightGBM</td><td>0,181</td><td>2,6x</td><td>0,742</td></tr>
+  <tr><td>Random Forest</td><td>0,137</td><td>2,0x</td><td>0,664</td></tr>
+</table>
+
+<div class="destaque">
+  <p><strong>Transparência que importa:</strong> o LightGBM superou a campeã na passada única do teste. A troca não foi feita, porque trocar de modelo depois de ver o teste é usar o teste para selecionar, e a métrica resultante nasceria inflada. O aprendizado está registrado como evolução: seleção com validação em múltiplas janelas temporais antes de produção. Preferimos uma estimativa honesta com a incerteza documentada a uma métrica maior obtida quebrando o protocolo.</p>
+</div>
+
+<p>O que o modelo usa, em ordem de importância: UF de destino, janela prometida (prazos longos protegem), distância vendedor→cliente e o tempo de despacho histórico do vendedor. Tudo interpretável e alinhado aos achados da análise exploratória.</p>
+
+<h2>6. O cenário operacional, em contagens</h2>
+
+<p>A decisão de operação não é um número estatístico, é um orçamento: <em>quantos clientes notificar por mês</em>. Cada orçamento corresponde a um ponto da curva de troca entre capturar atrasos e gerar alarmes falsos. Três pontos de referência, medidos no teste (mês típico de ~6,5 mil pedidos):</p>
+
+<table>
+  <tr><th>Política</th><th>Notificados/mês</th><th>Atrasos capturados/mês</th><th>Falsos alarmes/mês</th><th>Precisão (vs 7% do acaso)</th></tr>
+  <tr><td>Conservadora (6%)</td><td>409</td><td>74 (16% dos atrasos)</td><td>335</td><td>18,1% (2,6x)</td></tr>
+  <tr><td><strong>Default (16%)</strong></td><td><strong>1.054</strong></td><td><strong>166 (36%)</strong></td><td><strong>888</strong></td><td><strong>15,7% (2,2x)</strong></td></tr>
+  <tr><td>Agressiva (42%)</td><td>2.728</td><td>313 (68%)</td><td>2.414</td><td>11,5% (1,6x)</td></tr>
+</table>
+
+<figure>
+  <img src="figures/curva_pr_menu_operacao.png" alt="Curva precision-recall e menu de operação">
+  <figcaption>Figura 3 · A curva de troca completa (validação) com os três pontos nomeados. O aplicativo interativo do projeto recalcula as contagens ao vivo para qualquer orçamento.</figcaption>
+</figure>
+
+<p>Nenhum valor monetário foi assumido neste relatório de propósito: contagens são indiscutíveis, e a conversão em dinheiro depende de dois números que pertencem ao negócio (custo de um contato proativo e custo evitado de um cliente surpreendido). Com esses dois números, a tabela acima vira uma conta de retorno imediata.</p>
+
+<h2>7. Robustez através dos regimes (e o argumento de monitoramento)</h2>
+
+<figure>
+  <img src="figures/estratificacao_mensal_teste.png" alt="Estratificação mensal do teste">
+  <figcaption>Figura 4 · Qualidade de ordenação mês a mês no teste: estável através da saída da crise, da greve dos caminhoneiros e da recalibração de promessas; o pior mês é o mais distante do treino.</figcaption>
+</figure>
+
+<p>O período de teste contém, deliberadamente, três regimes distintos: a saída da crise logística (março), a greve dos caminhoneiros (maio) e a recalibração de promessas (junho em diante). A capacidade de ordenação do modelo permaneceu acima do acaso em todos (AUC-ROC de 0,61 a 0,79). O padrão do pior mês, agosto, o mais distante do treino, é a assinatura clássica de envelhecimento de modelo, e fundamenta as duas práticas recomendadas para produção: <strong>monitoramento mensal da métrica e gatilho de retreino</strong>.</p>
+
+<h2>8. Limitações e próximos passos</h2>
+
+<h3>Limitações, ditas com franqueza</h3>
+<ul>
+  <li><strong>Grão do pedido vs remessa:</strong> pedidos com mais de um vendedor (1,3% da base) são agregados no nível do pedido; peso e volume somados não correspondem a uma remessa física única. Redesenho por grão de remessa especificado para iteração futura.</li>
+  <li><strong>Seleção em janela única de validação:</strong> como demonstrado pelo LightGBM no teste, a escolha do campeão tem variância; produção pede validação em múltiplas janelas.</li>
+  <li><strong>Probabilidades não calibradas finamente:</strong> a política por orçamento de alertas contorna isso por construção; calibração formal é evolução natural.</li>
+  <li><strong>Escopo:</strong> o modelo prevê atraso de pedidos entregues; cancelamentos e extravios são um problema distinto, fora deste ciclo. Pedidos sem cobertura de geolocalização (0,5%) usam sinalização explícita.</li>
+</ul>
+
+<h3>Próximos passos</h3>
+<ol>
+  <li><strong>Piloto operacional</strong> no ponto default, com métricas de aceite do cliente à notificação.</li>
+  <li><strong>Seleção robusta:</strong> validação de origem rolante; reavaliar LightGBM como campeão; calibração de probabilidades.</li>
+  <li><strong>Novas fontes de sinal:</strong> grão de remessa (padrão gargalo), risco por rota (origem × destino), capacidade da transportadora.</li>
+  <li><strong>Industrialização:</strong> o desenho de produção descrito no repositório: ingestão orquestrada (Airflow), transformação com testes de qualidade de dados (dbt), treino e serving gerenciados (Databricks/Azure ML), feature store com os mesmos relógios de disponibilidade usados aqui, e monitoramento de drift com gatilho de retreino.</li>
+</ol>
+
+<p class="mini" style="margin-top:6mm">Reprodutibilidade: todo o caminho, dos dados brutos a este relatório, é reproduzível a partir do repositório público (notebooks narrados, pipeline auditado, testes automatizados e ambiente com versões fixadas). O aplicativo interativo permite explorar o cenário operacional com qualquer orçamento de alertas.</p>
+
+</body>
+</html>
