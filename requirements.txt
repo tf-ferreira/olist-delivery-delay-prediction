@@ -18,6 +18,10 @@ seaborn==0.13.2
 # App
 streamlit==1.59.1
 
+# Persistência de modelos
+joblib==1.5.3
+
 # Desenvolvimento
 jupyterlab==4.6.1
 ruff==0.15.21
+pytest==9.1.1
