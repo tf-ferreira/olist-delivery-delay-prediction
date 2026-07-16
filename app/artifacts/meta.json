@@ -1,0 +1,39 @@
+{
+  "cut": "2018-03-01",
+  "test_end": "2018-09-01",
+  "n_test": 39153,
+  "n_test_months": 6,
+  "test_prevalence": 0.0702117334559293,
+  "population": 96470,
+  "global_rate": 0.06773090079817559,
+  "default_alert_rate": 0.16155314151497357,
+  "named_points": {
+    "conservador": 0.06268349970640047,
+    "equilibrado": 0.16155314151497357,
+    "agressivo": 0.4181591309453905
+  },
+  "champion": "Regressão Logística (C=0,1)",
+  "features": [
+    "promised_window_days",
+    "purchase_month",
+    "distance_km",
+    "distance_missing",
+    "n_items",
+    "n_sellers",
+    "total_price",
+    "total_freight",
+    "freight_price_ratio",
+    "total_weight_g",
+    "total_volume_cm3",
+    "weight_missing",
+    "payment_total",
+    "payment_installments_max",
+    "payment_missing",
+    "seller_late_rate_hist",
+    "seller_posting_days_hist",
+    "seller_no_history",
+    "customer_state",
+    "main_category",
+    "payment_type_primary"
+  ]
+}
